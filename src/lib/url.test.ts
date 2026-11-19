@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidBookmarkUrl, normalizeServerUrl, withDefaultScheme } from "./url";
+import { isValidBookmarkUrl, normalizeServerUrl, parseClipboardUrl, withDefaultScheme } from "./url";
 
 describe("normalizeServerUrl", () => {
   it("trims whitespace and appends /api", () => {
@@ -78,5 +78,24 @@ describe("isValidBookmarkUrl", () => {
 
   it("rejects non-http schemes", () => {
     expect(isValidBookmarkUrl("ftp://example.com/file")).toBe(false);
+  });
+});
+
+describe("parseClipboardUrl", () => {
+  it("trims whitespace from absolute URLs", () => {
+    expect(parseClipboardUrl("  https://example.com/page  ")).toBe("https://example.com/page");
+  });
+
+  it("accepts scheme-less URLs that look like hosts", () => {
+    expect(parseClipboardUrl("example.com/page")).toBe("example.com/page");
+    expect(parseClipboardUrl("localhost:3000/page")).toBe("localhost:3000/page");
+  });
+
+  it("rejects blank text, plain words, and non-http values", () => {
+    expect(parseClipboardUrl("")).toBeUndefined();
+    expect(parseClipboardUrl("   ")).toBeUndefined();
+    expect(parseClipboardUrl("hello")).toBeUndefined();
+    expect(parseClipboardUrl("just some text")).toBeUndefined();
+    expect(parseClipboardUrl("ftp://example.com/file")).toBeUndefined();
   });
 });

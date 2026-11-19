@@ -1,5 +1,6 @@
 import {
   Action,
+  Clipboard,
   Form,
   Toast,
   closeMainWindow,
@@ -7,7 +8,6 @@ import {
   openExtensionPreferences,
   showToast,
 } from "@raycast/api";
-import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AddBookmarkCommand from "./add-bookmark";
@@ -19,17 +19,15 @@ const showToastMock = vi.mocked(showToast);
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-function commandProps(link?: string): React.ComponentProps<typeof AddBookmarkCommand> {
-  return {
-    arguments: link === undefined ? {} : { link },
-  } as unknown as React.ComponentProps<typeof AddBookmarkCommand>;
-}
+async function renderCommand(clipboardText?: string): Promise<ReactTestRenderer> {
+  if (clipboardText !== undefined) {
+    vi.mocked(Clipboard.readText).mockResolvedValueOnce(clipboardText);
+  }
 
-async function renderCommand(link?: string): Promise<ReactTestRenderer> {
   let renderer: ReactTestRenderer | undefined;
 
   await act(async () => {
-    renderer = create(<AddBookmarkCommand {...commandProps(link)} />);
+    renderer = create(<AddBookmarkCommand />);
   });
 
   return renderer as ReactTestRenderer;
@@ -48,6 +46,8 @@ beforeEach(() => {
     apiToken: "secret",
     tags: "dev, reading",
   });
+  vi.mocked(Clipboard.readText).mockReset();
+  vi.mocked(Clipboard.readText).mockResolvedValue("");
 });
 
 afterEach(() => {
@@ -56,35 +56,66 @@ afterEach(() => {
 });
 
 describe("Add Bookmark", () => {
-  it("prefills the URL argument", async () => {
-    const renderer = await renderCommand("https://example.com/page");
-
-    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/page");
-  });
-
-  it("opens an empty URL field without an argument", async () => {
+  it("opens an empty URL field when the clipboard has no URL", async () => {
     const renderer = await renderCommand();
 
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
   });
 
-  it("focuses the URL field when launched without a link", async () => {
+  it("focuses the URL field when the clipboard has no URL", async () => {
     const renderer = await renderCommand();
 
     expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
     expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(false);
   });
 
-  it("focuses the tag picker when launched with a link", async () => {
-    const renderer = await renderCommand("https://example.com/page");
+  it("prefills the URL from the clipboard", async () => {
+    vi.mocked(Clipboard.readText).mockResolvedValueOnce("  https://example.com/from-clipboard  ");
 
+    const renderer = await renderCommand();
+
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/from-clipboard");
     expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(false);
     expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(true);
   });
 
-  it("treats a blank link argument as missing", async () => {
-    const renderer = await renderCommand("   ");
+  it("ignores clipboard text that is not a URL", async () => {
+    vi.mocked(Clipboard.readText).mockResolvedValueOnce("just some text");
 
+    const renderer = await renderCommand();
+
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
+    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+  });
+
+  it("shows a loading form until the clipboard resolves", async () => {
+    let resolveClipboard!: (text: string) => void;
+    vi.mocked(Clipboard.readText).mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveClipboard = resolve;
+      }),
+    );
+
+    const renderer = await renderCommand();
+
+    expect(renderer.root.findByType(Form).props.isLoading).toBe(true);
+    expect(renderer.root.findAllByType(Form.TextField)).toHaveLength(0);
+
+    await act(async () => {
+      resolveClipboard("https://example.com/from-clipboard");
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/from-clipboard");
+    expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(true);
+  });
+
+  it("opens an empty form when the clipboard cannot be read", async () => {
+    vi.mocked(Clipboard.readText).mockRejectedValueOnce(new Error("Clipboard unavailable"));
+
+    const renderer = await renderCommand();
+
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
     expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
   });
 
@@ -146,7 +177,10 @@ describe("Add Bookmark", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const renderer = await renderCommand("not a url");
+    const renderer = await renderCommand();
+    await act(async () => {
+      renderer.root.findByType(Form.TextField).props.onChange("not a url");
+    });
     await submit(renderer);
 
     expect(renderer.root.findByType(Form.TextField).props.error).toBe("Enter a valid http or https URL");
@@ -293,7 +327,10 @@ describe("Add Bookmark", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const renderer = await renderCommand("not a url");
+    const renderer = await renderCommand();
+    await act(async () => {
+      renderer.root.findByType(Form.TextField).props.onChange("not a url");
+    });
     await submit(renderer);
     expect(renderer.root.findByType(Form.TextField).props.error).toBe("Enter a valid http or https URL");
 

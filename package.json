@@ -18,15 +18,7 @@
       "name": "add-bookmark",
       "title": "Add Bookmark",
       "description": "Save a page to linkding.",
-      "mode": "view",
-      "arguments": [
-        {
-          "name": "link",
-          "type": "text",
-          "placeholder": "https://example.com",
-          "required": false
-        }
-      ]
+      "mode": "view"
     }
   ],
   "preferences": [

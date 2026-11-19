@@ -46,6 +46,10 @@ export const Toast = {
   },
 };
 
+export const Clipboard = {
+  readText: vi.fn(async () => ""),
+};
+
 export const showToast = vi.fn(async () => ({}));
 export const closeMainWindow = vi.fn(async () => undefined);
 export const openExtensionPreferences = vi.fn(async () => undefined);

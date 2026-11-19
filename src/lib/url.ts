@@ -66,3 +66,21 @@ export function parseAbsoluteUrl(value: string): URL | undefined {
 export function isValidBookmarkUrl(value: string): boolean {
   return parseAbsoluteUrl(value) !== undefined;
 }
+
+function hasUrlLikeHost(value: string): boolean {
+  const host = value.split(/[/?#\s]/, 1)[0]?.toLowerCase() ?? "";
+  return host.includes(".") || host === "localhost" || /^localhost:\d+$/.test(host);
+}
+
+export function parseClipboardUrl(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  if (!SCHEME_PATTERN.test(trimmed) && !hasUrlLikeHost(trimmed)) {
+    return undefined;
+  }
+
+  return isValidBookmarkUrl(withDefaultScheme(trimmed)) ? trimmed : undefined;
+}

@@ -19,7 +19,9 @@ interface AddBookmarkArguments {
 
 export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBookmarkArguments }>) {
   const settings = getSettings();
-  const [url, setUrl] = useState(props.arguments?.link?.trim() ?? "");
+  const initialUrl = props.arguments?.link?.trim() ?? "";
+  const hasLink = initialUrl.length > 0;
+  const [url, setUrl] = useState(initialUrl);
   const [urlError, setUrlError] = useState<string>();
   const [read, setRead] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
@@ -78,6 +80,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         placeholder="https://example.com"
         value={url}
         error={urlError}
+        autoFocus={!hasLink}
         onChange={(value) => {
           setUrl(value);
           if (urlError) {
@@ -85,6 +88,18 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
           }
         }}
       />
+      <Form.TagPicker
+        id="tags"
+        title="Tags"
+        placeholder="Filter configured tags"
+        value={tags}
+        autoFocus={hasLink}
+        onChange={setTags}
+      >
+        {settings.tags.map((tag) => (
+          <Form.TagPicker.Item key={tag} value={tag} title={tag} />
+        ))}
+      </Form.TagPicker>
       <Form.Checkbox
         id="read"
         title="Read status"
@@ -93,11 +108,6 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         info="Leave unchecked to save the bookmark as unread."
         onChange={setRead}
       />
-      <Form.TagPicker id="tags" title="Tags" placeholder="Filter configured tags" value={tags} onChange={setTags}>
-        {settings.tags.map((tag) => (
-          <Form.TagPicker.Item key={tag} value={tag} title={tag} />
-        ))}
-      </Form.TagPicker>
     </Form>
   );
 }

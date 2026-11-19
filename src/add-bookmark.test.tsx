@@ -68,6 +68,33 @@ describe("Add Bookmark", () => {
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
   });
 
+  it("focuses the URL field when launched without a link", async () => {
+    const renderer = await renderCommand();
+
+    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+    expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(false);
+  });
+
+  it("focuses the tag picker when launched with a link", async () => {
+    const renderer = await renderCommand("https://example.com/page");
+
+    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(false);
+    expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(true);
+  });
+
+  it("treats a blank link argument as missing", async () => {
+    const renderer = await renderCommand("   ");
+
+    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+  });
+
+  it("places read status after URL and tags", async () => {
+    const renderer = await renderCommand();
+    const children = renderer.root.findByType(Form).props.children as Array<{ type: unknown }>;
+
+    expect(children.map((child) => child.type)).toEqual([Form.TextField, Form.TagPicker, Form.Checkbox]);
+  });
+
   it("saves an unread bookmark and closes the command", async () => {
     const fetchMock = vi.fn<Fetch>(async () => new Response("{}", { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);

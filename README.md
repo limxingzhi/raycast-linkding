@@ -30,9 +30,9 @@ Running **Add Bookmark** without a URL argument opens the form with an empty URL
 
 | Field | Required | Default | Notes |
 | --- | --- | --- | --- |
-| **URL** | yes | argument value, or empty | Must be a valid absolute URL. |
+| **URL** | yes | argument value, or empty | Must be a valid absolute URL. Focused when the command runs without a link. |
+| **Tags** | no | none | Multi-select from the configured tag list; type to filter. Focused when the command runs with a link. |
 | **Read status** | yes | Unread | Toggles between read and unread. |
-| **Tags** | no | none | Multi-select from the configured tag list; type to filter. |
 
 ## Preferences
 

@@ -1,6 +1,6 @@
 # Handoff: linkding Raycast extension
 
-**Status:** implementation committed as `4dc9dbb` on branch `dev`. `main` still points at the initial commit. Nothing was pushed. The uncommitted changes remove the custom command icon and use the official linkding logo for the one icon Raycast requires. Product scope, setup, and usage live in [`README.md`](../README.md).
+**Status:** complete on branch `dev`. `main` still points at the initial commit. Nothing was pushed. The extension uses linkding's official logo for the one icon Raycast requires, focuses the URL field or tag picker based on the launch argument, and puts read status last. Product scope, setup, and usage live in [`README.md`](../README.md).
 
 ## What is left
 
@@ -11,7 +11,7 @@
 
 ## Verification
 
-- `npm test`: 36 tests pass.
+- `npm test`: 40 tests pass.
 - `npm run lint`: passes.
 - `npx tsc --noEmit`: passes.
 

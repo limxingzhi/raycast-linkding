@@ -29,6 +29,33 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isSubmittingRef = useRef(false);
 
+  function handleUrlChange(value: string) {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    setUrl(value);
+    if (urlError) {
+      setUrlError(validateBookmarkUrl(withDefaultScheme(value)));
+    }
+  }
+
+  function handleTagsChange(value: string[]) {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    setTags(value);
+  }
+
+  function handleReadChange(value: boolean) {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    setRead(value);
+  }
+
   async function handleSubmit() {
     if (isSubmittingRef.current) {
       return;
@@ -91,12 +118,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         value={url}
         error={urlError}
         autoFocus={!hasLink}
-        onChange={(value) => {
-          setUrl(value);
-          if (urlError) {
-            setUrlError(validateBookmarkUrl(withDefaultScheme(value)));
-          }
-        }}
+        onChange={handleUrlChange}
       />
       <Form.TagPicker
         id="tags"
@@ -104,7 +126,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         placeholder="Filter configured tags"
         value={tags}
         autoFocus={hasLink}
-        onChange={setTags}
+        onChange={handleTagsChange}
       >
         {settings.tags.map((tag) => (
           <Form.TagPicker.Item key={tag} value={tag} title={tag} />
@@ -116,7 +138,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         label="Mark as read"
         value={read}
         info="Leave unchecked to save the bookmark as unread."
-        onChange={setRead}
+        onChange={handleReadChange}
       />
     </Form>
   );

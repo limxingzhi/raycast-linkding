@@ -247,6 +247,48 @@ describe("Add Bookmark", () => {
     expect(showToastMock).toHaveBeenCalledTimes(1);
   });
 
+  it("freezes the form while a request is in flight", async () => {
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn<Fetch>(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    const action = renderer.root.findByType(Action.SubmitForm);
+    let firstSubmit!: Promise<void>;
+
+    await act(async () => {
+      firstSubmit = (action.props.onSubmit as () => Promise<void>)();
+    });
+
+    expect(renderer.root.findByType(Form).props.isLoading).toBe(true);
+
+    await act(async () => {
+      renderer.root.findByType(Form.TextField).props.onChange("https://example.com/other");
+      renderer.root.findByType(Form.TagPicker).props.onChange(["dev"]);
+      renderer.root.findByType(Form.Checkbox).props.onChange(true);
+    });
+
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/page");
+    expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual([]);
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(false);
+
+    await act(async () => {
+      resolveFetch(new Response("{}", { status: 201 }));
+      await firstSubmit;
+    });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      url: "https://example.com/page",
+      unread: true,
+      tag_names: [],
+    });
+  });
+
   it("clears the URL error when the input becomes valid", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

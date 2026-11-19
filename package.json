@@ -19,7 +19,6 @@
       "title": "Add Bookmark",
       "description": "Save a page to linkding.",
       "mode": "view",
-      "icon": "add-bookmark.png",
       "arguments": [
         {
           "name": "link",

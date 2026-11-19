@@ -126,6 +126,25 @@ describe("Add Bookmark", () => {
     expect(children.map((child) => child.type)).toEqual([Form.TextField, Form.TagPicker, Form.Checkbox]);
   });
 
+  it("toggles read status with the CMD+R shortcut", async () => {
+    const renderer = await renderCommand();
+    const toggle = renderer.root
+      .findAllByType(Action)
+      .find((action) => action.props.shortcut?.key === "r" && action.props.shortcut?.modifiers?.includes("cmd"));
+
+    expect(toggle?.props.shortcut).toEqual({ modifiers: ["cmd"], key: "r" });
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(false);
+
+    await act(async () => {
+      toggle?.props.onAction();
+    });
+
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(true);
+    expect(renderer.root.findAllByType(Action).find((action) => action.props.shortcut?.key === "r")?.props.title).toBe(
+      "Mark as Unread",
+    );
+  });
+
   it("saves an unread bookmark and closes the command", async () => {
     const fetchMock = vi.fn<Fetch>(async () => new Response("{}", { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);

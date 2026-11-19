@@ -38,6 +38,14 @@ export const Action = Object.assign(createLeaf("Action"), {
   SubmitForm: createLeaf("Action.SubmitForm"),
 });
 
+export const Keyboard = {
+  Shortcut: {
+    Common: {
+      Refresh: { modifiers: ["cmd"], key: "r" },
+    },
+  },
+};
+
 export const Toast = {
   Style: {
     Animated: "animated",

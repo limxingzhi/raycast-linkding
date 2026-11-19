@@ -8,7 +8,7 @@ A [Raycast](https://www.raycast.com/) extension for saving a page to a self-host
 
 - **One command** - Add Bookmark. No search, browsing, or management commands.
 - **Clipboard prefill** - copy a link, launch Add Bookmark, and the URL is already in the form, ready for tags.
-- **Read status** - a read/unread toggle that defaults to **unread**.
+- **Read status** - a read/unread toggle that defaults to **unread**; press `⌘R` (`Ctrl+R` on Windows) to flip it.
 - **Tags** - a fuzzy-searchable multi-select populated from the tag list configured in the extension preferences.
 - **Direct to linkding** - the bookmark is created through the linkding REST API using the server URL and API token from preferences.
 
@@ -22,7 +22,7 @@ A [Raycast](https://www.raycast.com/) extension for saving a page to a self-host
 
 1. Copy the page URL to the clipboard.
 2. Launch **Add Bookmark** from Raycast. The URL is carried into the form.
-3. Pick a read status and any tags, then submit.
+3. Pick a read status (or press `⌘R`, `Ctrl+R` on Windows) and any tags, then submit.
 
 When the clipboard does not contain a URL, the form opens with an empty URL field, so a link can be typed or pasted there instead.
 
@@ -32,7 +32,7 @@ When the clipboard does not contain a URL, the form opens with an empty URL fiel
 | --------------- | -------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | **URL**         | yes      | clipboard value, or empty | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused when the clipboard has no URL. |
 | **Tags**        | no       | none                      | Multi-select from the configured tag list; type to filter. Focused when the clipboard provides a URL.                |
-| **Read status** | yes      | Unread                    | Toggles between read and unread.                                                                                     |
+| **Read status** | yes      | Unread                    | Toggles between read and unread. `⌘R` (`Ctrl+R` on Windows) toggles it from the action panel.                        |
 
 ## Preferences
 

@@ -3,6 +3,7 @@ import {
   ActionPanel,
   Clipboard,
   Form,
+  Keyboard,
   Toast,
   closeMainWindow,
   openExtensionPreferences,
@@ -131,6 +132,11 @@ export default function AddBookmarkCommand() {
       actions={
         <ActionPanel>
           <Action.SubmitForm title="Save Bookmark" onSubmit={handleSubmit} />
+          <Action
+            title={read ? "Mark as Unread" : "Mark as Read"}
+            shortcut={Keyboard.Shortcut.Common.Refresh}
+            onAction={() => handleReadChange(!read)}
+          />
           <Action title="Open Extension Preferences" onAction={openExtensionPreferences} />
         </ActionPanel>
       }

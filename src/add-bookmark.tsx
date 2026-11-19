@@ -1,33 +1,58 @@
 import {
   Action,
   ActionPanel,
+  Clipboard,
   Form,
-  LaunchProps,
+  Keyboard,
   Toast,
   closeMainWindow,
   openExtensionPreferences,
   showToast,
 } from "@raycast/api";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createBookmark, getErrorMessage, isUnauthorized } from "./lib/linkding";
 import { buildBookmarkPayload, validateBookmarkUrl } from "./lib/payload";
 import { getSettings } from "./lib/preferences";
-import { withDefaultScheme } from "./lib/url";
+import { parseClipboardUrl, withDefaultScheme } from "./lib/url";
 
-interface AddBookmarkArguments {
-  link?: string;
-}
-
-export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBookmarkArguments }>) {
+export default function AddBookmarkCommand() {
   const [settings] = useState(() => getSettings());
-  const initialUrl = props.arguments?.link?.trim() ?? "";
-  const hasLink = initialUrl.length > 0;
-  const [url, setUrl] = useState(initialUrl);
+  const [url, setUrl] = useState("");
   const [urlError, setUrlError] = useState<string>();
   const [read, setRead] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasUrl, setHasUrl] = useState(false);
+  const [isReadingClipboard, setIsReadingClipboard] = useState(true);
   const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    function applyClipboardText(text: string | undefined) {
+      if (cancelled) {
+        return;
+      }
+
+      const clipboardUrl = parseClipboardUrl(text ?? "");
+      if (clipboardUrl) {
+        setUrl(clipboardUrl);
+        setHasUrl(true);
+      }
+
+      setIsReadingClipboard(false);
+    }
+
+    Clipboard.readText().then(applyClipboardText, () => applyClipboardText(undefined));
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (isReadingClipboard) {
+    return <Form isLoading />;
+  }
 
   function handleUrlChange(value: string) {
     if (isSubmittingRef.current) {
@@ -107,6 +132,11 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
       actions={
         <ActionPanel>
           <Action.SubmitForm title="Save Bookmark" onSubmit={handleSubmit} />
+          <Action
+            title={read ? "Mark as Unread" : "Mark as Read"}
+            shortcut={Keyboard.Shortcut.Common.Refresh}
+            onAction={() => handleReadChange(!read)}
+          />
           <Action title="Open Extension Preferences" onAction={openExtensionPreferences} />
         </ActionPanel>
       }
@@ -117,7 +147,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         placeholder="https://example.com"
         value={url}
         error={urlError}
-        autoFocus={!hasLink}
+        autoFocus={!hasUrl}
         onChange={handleUrlChange}
       />
       <Form.TagPicker
@@ -125,7 +155,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         title="Tags"
         placeholder="Filter configured tags"
         value={tags}
-        autoFocus={hasLink}
+        autoFocus={hasUrl}
         onChange={handleTagsChange}
       >
         {settings.tags.map((tag) => (

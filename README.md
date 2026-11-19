@@ -7,32 +7,32 @@ A [Raycast](https://www.raycast.com/) extension for saving a page to a self-host
 ## Features
 
 - **One command** - Add Bookmark. No search, browsing, or management commands.
-- **Link as an argument** - type or paste a URL into Raycast's root search, press `Tab`, and choose Add Bookmark; the URL arrives prefilled in the form. Running the command directly opens the same form with an empty URL.
-- **Read status** - a read/unread toggle that defaults to **unread**.
+- **Clipboard prefill** - copy a link, launch Add Bookmark, and the URL is already in the form, ready for tags.
+- **Read status** - a read/unread toggle that defaults to **unread**; press `⌘R` (`Ctrl+R` on Windows) to flip it.
 - **Tags** - a fuzzy-searchable multi-select populated from the tag list configured in the extension preferences.
 - **Direct to linkding** - the bookmark is created through the linkding REST API using the server URL and API token from preferences.
 
 ## Command
 
-| Command          | Mode | Description                                                                                                                        |
-| ---------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **Add Bookmark** | view | Accepts an optional `link` argument and opens a form with URL, read status, and tags. Submitting creates the bookmark in linkding. |
+| Command          | Mode | Description                                                                                                                       |
+| ---------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Add Bookmark** | view | Opens a form with URL, read status, and tags, prefilling the URL from the clipboard. Submitting creates the bookmark in linkding. |
 
 ### Usage
 
-1. From Raycast's root search, type or paste the page URL.
-2. Press `Tab`, then choose **Add Bookmark**. The URL is carried into the form.
-3. Pick a read status and any tags, then submit.
+1. Copy the page URL to the clipboard.
+2. Launch **Add Bookmark** from Raycast. The URL is carried into the form.
+3. Pick a read status (or press `⌘R`, `Ctrl+R` on Windows) and any tags, then submit.
 
-Running **Add Bookmark** without a URL argument opens the form with an empty URL field, so a link can be typed or pasted there instead.
+When the clipboard does not contain a URL, the form opens with an empty URL field, so a link can be typed or pasted there instead.
 
 ## Form
 
-| Field           | Required | Default                  | Notes                                                                                                                       |
-| --------------- | -------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| **URL**         | yes      | argument value, or empty | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused when the command runs without a link. |
-| **Tags**        | no       | none                     | Multi-select from the configured tag list; type to filter. Focused when the command runs with a link.                       |
-| **Read status** | yes      | Unread                   | Toggles between read and unread.                                                                                            |
+| Field           | Required | Default                   | Notes                                                                                                                |
+| --------------- | -------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **URL**         | yes      | clipboard value, or empty | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused when the clipboard has no URL. |
+| **Tags**        | no       | none                      | Multi-select from the configured tag list; type to filter. Focused when the clipboard provides a URL.                |
+| **Read status** | yes      | Unread                    | Toggles between read and unread. `⌘R` (`Ctrl+R` on Windows) toggles it from the action panel.                        |
 
 ## Preferences
 

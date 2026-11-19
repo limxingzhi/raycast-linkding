@@ -96,11 +96,55 @@ describe("createBookmark", () => {
       message: "Could not reach the linkding server.",
     });
   });
+
+  it("does not report an aborted request as a timeout", async () => {
+    const fetchMock = vi.fn<Fetch>().mockRejectedValue(new DOMException("Aborted", "AbortError"));
+
+    await expect(createBookmark(payload, settings, fetchMock)).rejects.toMatchObject({
+      kind: "network",
+      message: "Could not reach the linkding server.",
+    });
+  });
+
+  it("rejects a malformed server URL before sending a request", async () => {
+    const fetchMock = vi.fn<Fetch>();
+
+    await expect(createBookmark(payload, { ...settings, baseUrl: "" }, fetchMock)).rejects.toMatchObject({
+      kind: "config",
+      message: "Set a valid Server URL in the extension preferences.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores deeply nested error bodies", async () => {
+    let body: unknown = "deep";
+    for (let index = 0; index < 20; index += 1) {
+      body = { nested: body };
+    }
+    const fetchMock = vi.fn<Fetch>().mockResolvedValue(jsonResponse(body, 500));
+
+    await expect(createBookmark(payload, settings, fetchMock)).rejects.toMatchObject({
+      kind: "http",
+      message: "linkding returned 500",
+    });
+  });
+
+  it("caps long server messages", async () => {
+    const fetchMock = vi.fn<Fetch>().mockResolvedValue(jsonResponse({ detail: "x".repeat(5_000) }, 500));
+
+    const error = await createBookmark(payload, settings, fetchMock).catch((reason) => reason);
+
+    expect(error.message).toHaveLength(1_000);
+  });
 });
 
 describe("getErrorMessage", () => {
   it("returns the error message", () => {
     expect(getErrorMessage(new Error("boom"))).toBe("boom");
     expect(getErrorMessage("nope")).toBe("An unexpected error occurred.");
+  });
+
+  it("returns the message for a LinkdingError", () => {
+    expect(getErrorMessage(new LinkdingError("http", "Server exploded"))).toBe("Server exploded");
   });
 });

@@ -188,4 +188,100 @@ describe("Add Bookmark", () => {
       message: "Server exploded",
     });
   });
+
+  it("shows a timeout toast when the request times out", async () => {
+    const fetchMock = vi.fn<Fetch>().mockRejectedValue(new DOMException("Timed out", "TimeoutError"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    await submit(renderer);
+
+    expect(showToastMock).toHaveBeenCalledWith({
+      style: Toast.Style.Failure,
+      title: "Could not save bookmark",
+      message: "The request to linkding timed out.",
+    });
+  });
+
+  it("shows a network toast when the server is unreachable", async () => {
+    const fetchMock = vi.fn<Fetch>().mockRejectedValue(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    await submit(renderer);
+
+    expect(showToastMock).toHaveBeenCalledWith({
+      style: Toast.Style.Failure,
+      title: "Could not save bookmark",
+      message: "Could not reach the linkding server.",
+    });
+  });
+
+  it("ignores repeated submits while a request is in flight", async () => {
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn<Fetch>(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    const action = renderer.root.findByType(Action.SubmitForm);
+    let firstSubmit!: Promise<void>;
+
+    await act(async () => {
+      firstSubmit = (action.props.onSubmit as () => Promise<void>)();
+    });
+
+    await submit(renderer);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFetch(new Response("{}", { status: 201 }));
+      await firstSubmit;
+    });
+
+    expect(showToastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the URL error when the input becomes valid", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("not a url");
+    await submit(renderer);
+    expect(renderer.root.findByType(Form.TextField).props.error).toBe("Enter a valid http or https URL");
+
+    await act(async () => {
+      renderer.root.findByType(Form.TextField).props.onChange("https://example.com");
+    });
+
+    expect(renderer.root.findByType(Form.TextField).props.error).toBeUndefined();
+  });
+
+  it("adds https to a scheme-less URL before saving", async () => {
+    const fetchMock = vi.fn<Fetch>(async () => new Response("{}", { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("example.com/page");
+    await submit(renderer);
+
+    const init = fetchMock.mock.calls[0][1];
+    expect(JSON.parse(init.body as string)).toMatchObject({ url: "https://example.com/page" });
+  });
+
+  it("reads preferences once per mount", async () => {
+    const renderer = await renderCommand();
+
+    expect(getPreferenceValuesMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      renderer.root.findByType(Form.TextField).props.onChange("https://example.com");
+    });
+
+    expect(getPreferenceValuesMock).toHaveBeenCalledTimes(1);
+  });
 });

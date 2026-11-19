@@ -22,11 +22,17 @@ export interface BookmarkFormState {
 }
 
 export function buildBookmarkPayload(state: BookmarkFormState): BookmarkPayload {
-  return bookmarkPayloadSchema.parse({
+  const result = bookmarkPayloadSchema.safeParse({
     url: state.url,
     unread: !state.read,
     tag_names: state.tags,
   });
+
+  if (!result.success) {
+    throw new Error(result.error.issues[0]?.message ?? "Enter a valid bookmark.");
+  }
+
+  return result.data;
 }
 
 export function validateBookmarkUrl(value: string): string | undefined {

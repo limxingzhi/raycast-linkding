@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidBookmarkUrl, normalizeServerUrl } from "./url";
+import { isValidBookmarkUrl, normalizeServerUrl, withDefaultScheme } from "./url";
 
 describe("normalizeServerUrl", () => {
   it("trims whitespace and appends /api", () => {
@@ -26,8 +26,40 @@ describe("normalizeServerUrl", () => {
     expect(normalizeServerUrl("https://linkding.example.com/api/")).toBe("https://linkding.example.com/api");
   });
 
+  it("strips a full bookmarks API URL", () => {
+    expect(normalizeServerUrl("https://linkding.example.com/api/bookmarks/")).toBe("https://linkding.example.com/api");
+  });
+
+  it("supports an instance hosted under /api", () => {
+    expect(normalizeServerUrl("https://linkding.example.com/api/api/bookmarks/")).toBe(
+      "https://linkding.example.com/api/api",
+    );
+  });
+
+  it("drops query strings and fragments", () => {
+    expect(normalizeServerUrl("https://linkding.example.com?page=2#top")).toBe("https://linkding.example.com/api");
+  });
+
   it("returns an empty string for blank input", () => {
     expect(normalizeServerUrl("   ")).toBe("");
+  });
+
+  it("returns an empty string for malformed input", () => {
+    expect(normalizeServerUrl("https://")).toBe("");
+    expect(normalizeServerUrl("not a url")).toBe("");
+    expect(normalizeServerUrl("ftp://linkding.example.com")).toBe("");
+  });
+});
+
+describe("withDefaultScheme", () => {
+  it("adds https to scheme-less URLs", () => {
+    expect(withDefaultScheme("example.com/page")).toBe("https://example.com/page");
+  });
+
+  it("keeps existing schemes, host ports, and blank input", () => {
+    expect(withDefaultScheme("http://example.com")).toBe("http://example.com");
+    expect(withDefaultScheme("localhost:3000/page")).toBe("https://localhost:3000/page");
+    expect(withDefaultScheme("  ")).toBe("");
   });
 });
 

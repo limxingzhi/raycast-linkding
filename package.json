@@ -4,7 +4,7 @@
   "title": "Linkding Bookmarks",
   "description": "Save pages to a self-hosted linkding server.",
   "icon": "extension-icon.png",
-  "author": "crush",
+  "author": "limxingzhi",
   "categories": [
     "Productivity"
   ],
@@ -33,7 +33,7 @@
     {
       "name": "serverUrl",
       "title": "Server URL",
-      "description": "Base URL of your linkding instance, without /api.",
+      "description": "Base URL of your linkding instance. /api is added automatically.",
       "type": "textfield",
       "required": true,
       "placeholder": "https://linkding.example.com"

@@ -1,9 +1,13 @@
 import type { BookmarkPayload } from "./payload";
 import type { LinkdingSettings } from "./preferences";
+import { parseAbsoluteUrl } from "./url";
 
 const REQUEST_TIMEOUT_MS = 15_000;
+const MAX_MESSAGE_DEPTH = 8;
+const MAX_MESSAGE_LENGTH = 1_000;
+const MAX_MESSAGE_ENTRIES = 20;
 
-export type LinkdingErrorKind = "unauthorized" | "http" | "network" | "timeout";
+export type LinkdingErrorKind = "config" | "unauthorized" | "http" | "network" | "timeout";
 
 export class LinkdingError extends Error {
   readonly kind: LinkdingErrorKind;
@@ -24,6 +28,10 @@ export async function createBookmark(
   settings: LinkdingSettings,
   fetchImpl: Fetch = fetch,
 ): Promise<void> {
+  if (!parseAbsoluteUrl(settings.baseUrl)) {
+    throw new LinkdingError("config", "Set a valid Server URL in the extension preferences.");
+  }
+
   let response: Response;
 
   try {
@@ -71,7 +79,7 @@ function isTimeoutError(error: unknown): boolean {
   }
 
   const name = (error as { name?: unknown }).name;
-  return name === "TimeoutError" || name === "AbortError";
+  return name === "TimeoutError";
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
@@ -84,19 +92,26 @@ async function readErrorMessage(response: Response): Promise<string> {
     }
 
     const message = extractMessage(JSON.parse(body));
-    return message ?? fallback;
+    return message ? message.slice(0, MAX_MESSAGE_LENGTH) : fallback;
   } catch {
     return fallback;
   }
 }
 
-function extractMessage(value: unknown): string | undefined {
+function extractMessage(value: unknown, depth = 0): string | undefined {
+  if (depth > MAX_MESSAGE_DEPTH) {
+    return undefined;
+  }
+
   if (typeof value === "string") {
     return value.trim() || undefined;
   }
 
   if (Array.isArray(value)) {
-    const messages = value.map(extractMessage).filter((message): message is string => Boolean(message));
+    const messages = value
+      .slice(0, MAX_MESSAGE_ENTRIES)
+      .map((entry) => extractMessage(entry, depth + 1))
+      .filter((message): message is string => Boolean(message));
     return messages.length > 0 ? messages.join(" ") : undefined;
   }
 
@@ -104,15 +119,16 @@ function extractMessage(value: unknown): string | undefined {
     const record = value as Record<string, unknown>;
 
     for (const key of ["detail", "message", "non_field_errors"]) {
-      const message = extractMessage(record[key]);
+      const message = extractMessage(record[key], depth + 1);
       if (message) {
         return message;
       }
     }
 
     const messages = Object.entries(record)
+      .slice(0, MAX_MESSAGE_ENTRIES)
       .map(([key, entry]) => {
-        const message = extractMessage(entry);
+        const message = extractMessage(entry, depth + 1);
         return message ? `${key}: ${message}` : undefined;
       })
       .filter((message): message is string => Boolean(message));

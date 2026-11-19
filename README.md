@@ -2,7 +2,7 @@
 
 A [Raycast](https://www.raycast.com/) extension for saving a page to a self-hosted [linkding](https://linkding.link/) server.
 
-> **Status:** implemented. The command, API client, and tests are in place. The original plan is kept in [`.handoff/2026-11-19-initial-implementation.md`](.handoff/2026-11-19-initial-implementation.md).
+> **Status:** implemented. Tests, typecheck, ESLint, and Prettier run in CI. This is a personal build, not a Raycast Store submission. `ray build` needs macOS or Windows.
 
 ## Features
 
@@ -14,8 +14,8 @@ A [Raycast](https://www.raycast.com/) extension for saving a page to a self-host
 
 ## Command
 
-| Command | Mode | Description |
-| --- | --- | --- |
+| Command          | Mode | Description                                                                                                                        |
+| ---------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Add Bookmark** | view | Accepts an optional `link` argument and opens a form with URL, read status, and tags. Submitting creates the bookmark in linkding. |
 
 ### Usage
@@ -28,19 +28,19 @@ Running **Add Bookmark** without a URL argument opens the form with an empty URL
 
 ## Form
 
-| Field | Required | Default | Notes |
-| --- | --- | --- | --- |
-| **URL** | yes | argument value, or empty | Must be a valid absolute URL. Focused when the command runs without a link. |
-| **Tags** | no | none | Multi-select from the configured tag list; type to filter. Focused when the command runs with a link. |
-| **Read status** | yes | Unread | Toggles between read and unread. |
+| Field           | Required | Default                  | Notes                                                                                                                       |
+| --------------- | -------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| **URL**         | yes      | argument value, or empty | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused when the command runs without a link. |
+| **Tags**        | no       | none                     | Multi-select from the configured tag list; type to filter. Focused when the command runs with a link.                       |
+| **Read status** | yes      | Unread                   | Toggles between read and unread.                                                                                            |
 
 ## Preferences
 
-| Preference | Type | Required | Purpose |
-| --- | --- | --- | --- |
-| **Server URL** | text field | yes | Base URL of the linkding instance, for example `https://linkding.example.com` or `http://192.168.1.10:9090`. |
-| **API Token** | password | yes | Token from linkding's **Settings** page. Sent as `Authorization: Token <token>`. |
-| **Tags** | text field | no | Comma-separated list of tags offered in the form, for example `dev, reading, work`. |
+| Preference     | Type       | Required | Purpose                                                                                                                                                               |
+| -------------- | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Server URL** | text field | yes      | Base URL of the linkding instance, for example `https://linkding.example.com` or `http://192.168.1.10:9090`. A full `/api/bookmarks/` URL is accepted and normalized. |
+| **API Token**  | password   | yes      | Token from linkding's **Settings** page. Sent as `Authorization: Token <token>`.                                                                                      |
+| **Tags**       | text field | no       | Comma-separated list of tags offered in the form, for example `dev, reading, work`.                                                                                   |
 
 The token is stored as a Raycast preference and never written to the repository or logs. Only tags from the configured list are offered in the form.
 
@@ -52,7 +52,7 @@ The token is stored as a Raycast preference and never written to the repository 
 
 ## How it works
 
-The extension sends a single `POST /api/bookmarks/` request with `url`, `unread`, and `tag_names`. There is no local database and no intermediary service: the configured server URL is normalized once (trimmed, trailing slashes removed, `/api` appended) and called directly. If the URL is already bookmarked, linkding updates that bookmark instead of creating a duplicate. The API contract is documented at <https://linkding.link/api/>.
+The extension sends a single `POST /api/bookmarks/` request with `url`, `unread`, and `tag_names`. There is no local database and no intermediary service: the configured server URL is normalized once (trimmed, a missing scheme becomes `https`, trailing slashes and a `/api/bookmarks/` suffix are removed, `/api` is appended) and called directly. If the URL is already bookmarked, linkding updates that bookmark instead of creating a duplicate. The API contract is documented at <https://linkding.link/api/>.
 
 ## Development
 
@@ -65,7 +65,7 @@ npm run fix-lint   # ray lint --fix
 npm test           # vitest run
 ```
 
-`ray build`, `ray dev` and `ray lint` require the Raycast CLI on macOS or Windows. On Linux, `npx ray lint` and `npm test` are the checks that work.
+`ray build` and `ray dev` require macOS or Windows. CI runs tests, typecheck, ESLint, and Prettier on Linux on every push and pull request. `ray lint` additionally validates Raycast Store metadata; this is a personal build, so that check is not used.
 
 ## License
 

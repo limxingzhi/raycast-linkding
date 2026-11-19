@@ -12,7 +12,7 @@ export function parseTagList(value: string | null | undefined): string[] {
       continue;
     }
 
-    const key = tag.toLocaleLowerCase();
+    const key = tag.toLowerCase();
     if (seen.has(key)) {
       continue;
     }

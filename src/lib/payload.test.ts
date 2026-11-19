@@ -29,6 +29,16 @@ describe("buildBookmarkPayload", () => {
       tag_names: [],
     });
   });
+
+  it("throws a readable message instead of a ZodError", () => {
+    expect(() =>
+      buildBookmarkPayload({
+        url: "not a url",
+        read: false,
+        tags: [],
+      }),
+    ).toThrow("Enter a valid http or https URL");
+  });
 });
 
 describe("validateBookmarkUrl", () => {

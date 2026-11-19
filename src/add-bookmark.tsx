@@ -8,17 +8,18 @@ import {
   openExtensionPreferences,
   showToast,
 } from "@raycast/api";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createBookmark, getErrorMessage, isUnauthorized } from "./lib/linkding";
 import { buildBookmarkPayload, validateBookmarkUrl } from "./lib/payload";
 import { getSettings } from "./lib/preferences";
+import { withDefaultScheme } from "./lib/url";
 
 interface AddBookmarkArguments {
   link?: string;
 }
 
 export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBookmarkArguments }>) {
-  const settings = getSettings();
+  const [settings] = useState(() => getSettings());
   const initialUrl = props.arguments?.link?.trim() ?? "";
   const hasLink = initialUrl.length > 0;
   const [url, setUrl] = useState(initialUrl);
@@ -26,19 +27,27 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
   const [read, setRead] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   async function handleSubmit() {
-    const validationMessage = validateBookmarkUrl(url);
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    const normalizedUrl = withDefaultScheme(url);
+    const validationMessage = validateBookmarkUrl(normalizedUrl);
     if (validationMessage) {
       setUrlError(validationMessage);
       return;
     }
 
+    setUrl(normalizedUrl);
     setUrlError(undefined);
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
-      await createBookmark(buildBookmarkPayload({ url, read, tags }), settings);
+      await createBookmark(buildBookmarkPayload({ url: normalizedUrl, read, tags }), settings);
       await showToast({ style: Toast.Style.Success, title: "Bookmark saved" });
       await closeMainWindow();
     } catch (error) {
@@ -60,6 +69,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         });
       }
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -84,7 +94,7 @@ export default function AddBookmarkCommand(props: LaunchProps<{ arguments: AddBo
         onChange={(value) => {
           setUrl(value);
           if (urlError) {
-            setUrlError(validateBookmarkUrl(value));
+            setUrlError(validateBookmarkUrl(withDefaultScheme(value)));
           }
         }}
       />

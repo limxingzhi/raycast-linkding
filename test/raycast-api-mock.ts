@@ -58,6 +58,25 @@ export const Clipboard = {
   readText: vi.fn(async () => ""),
 };
 
+const localStorageData = new Map<string, string>();
+
+export const LocalStorage = {
+  getItem: vi.fn(async (key: string) => localStorageData.get(key)),
+  setItem: vi.fn(async (key: string, value: string) => {
+    localStorageData.set(key, value);
+  }),
+  removeItem: vi.fn(async (key: string) => {
+    localStorageData.delete(key);
+  }),
+  clear: vi.fn(async () => {
+    localStorageData.clear();
+  }),
+};
+
+export function resetLocalStorage(): void {
+  localStorageData.clear();
+}
+
 export const showToast = vi.fn(async () => ({}));
 export const closeMainWindow = vi.fn(async () => undefined);
 export const openExtensionPreferences = vi.fn(async () => undefined);

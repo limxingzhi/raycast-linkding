@@ -2,6 +2,7 @@ import {
   Action,
   Clipboard,
   Form,
+  LocalStorage,
   Toast,
   closeMainWindow,
   getPreferenceValues,
@@ -10,6 +11,7 @@ import {
 } from "@raycast/api";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetLocalStorage } from "../test/raycast-api-mock";
 import AddBookmarkCommand from "./add-bookmark";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -41,6 +43,7 @@ async function submit(renderer: ReactTestRenderer): Promise<void> {
 }
 
 beforeEach(() => {
+  resetLocalStorage();
   getPreferenceValuesMock.mockReturnValue({
     serverUrl: "https://linkding.example.com",
     apiToken: "secret",
@@ -167,6 +170,42 @@ describe("Add Bookmark", () => {
       title: "Bookmark saved",
     });
     expect(closeMainWindow).toHaveBeenCalled();
+    expect(LocalStorage.setItem).toHaveBeenCalledWith(
+      "last-bookmark-settings",
+      JSON.stringify({ read: false, tags: [] }),
+    );
+  });
+
+  it("remembers the tags and read status after a successful save", async () => {
+    const fetchMock = vi.fn<Fetch>(async () => new Response("{}", { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    await act(async () => {
+      renderer.root.findByType(Form.Checkbox).props.onChange(true);
+      renderer.root.findByType(Form.TagPicker).props.onChange(["dev"]);
+    });
+
+    await submit(renderer);
+
+    expect(LocalStorage.setItem).toHaveBeenCalledWith(
+      "last-bookmark-settings",
+      JSON.stringify({ read: true, tags: ["dev"] }),
+    );
+  });
+
+  it("keeps the previous settings when a save fails", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ detail: "Server exploded" }), { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    await act(async () => {
+      renderer.root.findByType(Form.Checkbox).props.onChange(true);
+    });
+
+    await submit(renderer);
+
+    expect(LocalStorage.setItem).not.toHaveBeenCalled();
   });
 
   it("submits read status and selected tags", async () => {

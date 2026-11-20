@@ -6,17 +6,19 @@ A [Raycast](https://www.raycast.com/) extension for saving a page to a self-host
 
 ## Features
 
-- **One command** - Add Bookmark. No search, browsing, or management commands.
-- **Clipboard prefill** - copy a link, launch Add Bookmark, and the URL is already in the form, ready for tags.
+- **Two commands** - Add Bookmark and Repeat Bookmark. No search, browsing, or management commands.
+- **Clipboard prefill** - copy a link, launch either command, and the URL is already in the form, ready for tags.
+- **Repeat last settings** - Repeat Bookmark prefills the tags and read status from the last successful save, so saving a batch of pages takes fewer keystrokes.
 - **Read status** - a read/unread toggle that defaults to **unread**; press `⌘R` (`Ctrl+R` on Windows) to flip it.
 - **Tags** - a fuzzy-searchable multi-select populated from the tag list configured in the extension preferences.
 - **Direct to linkding** - the bookmark is created through the linkding REST API using the server URL and API token from preferences.
 
 ## Command
 
-| Command          | Mode | Description                                                                                                                       |
-| ---------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
-| **Add Bookmark** | view | Opens a form with URL, read status, and tags, prefilling the URL from the clipboard. Submitting creates the bookmark in linkding. |
+| Command             | Mode | Description                                                                                                                       |
+| ------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Add Bookmark**    | view | Opens a form with URL, read status, and tags, prefilling the URL from the clipboard. Submitting creates the bookmark in linkding. |
+| **Repeat Bookmark** | view | Opens the same form, taking the URL from the clipboard and prefilling the tags and read status from the last successful save.     |
 
 ### Usage
 
@@ -24,15 +26,17 @@ A [Raycast](https://www.raycast.com/) extension for saving a page to a self-host
 2. Launch **Add Bookmark** from Raycast. The URL is carried into the form.
 3. Pick a read status (or press `⌘R`, `Ctrl+R` on Windows) and any tags, then submit.
 
+Launch **Repeat Bookmark** instead when the next page should reuse the tags and read status from your last successful save. Only tags still listed in the preferences are kept, and without a previous save it behaves like **Add Bookmark**.
+
 When the clipboard does not contain a URL, the form opens with an empty URL field, so a link can be typed or pasted there instead.
 
 ## Form
 
-| Field           | Required | Default                   | Notes                                                                                                                |
-| --------------- | -------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **URL**         | yes      | clipboard value, or empty | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused when the clipboard has no URL. |
-| **Tags**        | no       | none                      | Multi-select from the configured tag list; type to filter. Focused when the clipboard provides a URL.                |
-| **Read status** | yes      | Unread                    | Toggles between read and unread. `⌘R` (`Ctrl+R` on Windows) toggles it from the action panel.                        |
+| Field           | Required | Default                          | Notes                                                                                                                |
+| --------------- | -------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **URL**         | yes      | clipboard value, or empty        | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused when the clipboard has no URL. |
+| **Tags**        | no       | none, or the last saved tags     | Multi-select from the configured tag list; type to filter. Focused when the clipboard provides a URL.                |
+| **Read status** | yes      | Unread, or the last saved status | Toggles between read and unread. `⌘R` (`Ctrl+R` on Windows) toggles it from the action panel.                        |
 
 ## Preferences
 
@@ -53,6 +57,8 @@ The token is stored as a Raycast preference and never written to the repository 
 ## How it works
 
 The extension sends a single `POST /api/bookmarks/` request with `url`, `unread`, and `tag_names`. There is no local database and no intermediary service: the configured server URL is normalized once (trimmed, a missing scheme becomes `https`, trailing slashes and a `/api/bookmarks/` suffix are removed, `/api` is appended) and called directly. If the URL is already bookmarked, linkding updates that bookmark instead of creating a duplicate. The API contract is documented at <https://linkding.link/api/>.
+
+Both commands remember the tags and read status of the most recent successful save in Raycast LocalStorage. **Repeat Bookmark** reads that snapshot on launch; bookmarks themselves are never stored locally.
 
 ## Development
 

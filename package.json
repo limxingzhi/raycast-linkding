@@ -19,6 +19,12 @@
       "title": "Add Bookmark",
       "description": "Save a page to linkding.",
       "mode": "view"
+    },
+    {
+      "name": "repeat-bookmark",
+      "title": "Repeat Bookmark",
+      "description": "Save a page with the tags and read status from the last bookmark.",
+      "mode": "view"
     }
   ],
   "preferences": [

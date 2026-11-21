@@ -1,8 +1,9 @@
-import { Action, Clipboard, Form, LocalStorage, getPreferenceValues } from "@raycast/api";
+import { Action, Clipboard, Form, LaunchType, LocalStorage, getPreferenceValues } from "@raycast/api";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetLocalStorage } from "../test/raycast-api-mock";
+import { focusLog, resetFocusLog, resetLocalStorage } from "../test/raycast-api-mock";
 import { saveLastSettings } from "./lib/last-settings";
+import type { BookmarkDraftValues } from "./bookmark-form";
 import RepeatBookmarkCommand from "./repeat-bookmark";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -12,7 +13,7 @@ const setItemMock = vi.mocked(LocalStorage.setItem);
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-async function renderCommand(clipboardText?: string): Promise<ReactTestRenderer> {
+async function renderCommand(clipboardText?: string, draftValues?: BookmarkDraftValues): Promise<ReactTestRenderer> {
   if (clipboardText !== undefined) {
     vi.mocked(Clipboard.readText).mockResolvedValueOnce(clipboardText);
   }
@@ -20,7 +21,9 @@ async function renderCommand(clipboardText?: string): Promise<ReactTestRenderer>
   let renderer: ReactTestRenderer | undefined;
 
   await act(async () => {
-    renderer = create(<RepeatBookmarkCommand />);
+    renderer = create(
+      <RepeatBookmarkCommand launchType={LaunchType.UserInitiated} arguments={{}} draftValues={draftValues} />,
+    );
   });
 
   return renderer as ReactTestRenderer;
@@ -28,6 +31,7 @@ async function renderCommand(clipboardText?: string): Promise<ReactTestRenderer>
 
 beforeEach(() => {
   resetLocalStorage();
+  resetFocusLog();
   getPreferenceValuesMock.mockReturnValue({
     serverUrl: "https://linkding.example.com",
     apiToken: "secret",
@@ -60,7 +64,7 @@ describe("Repeat Bookmark", () => {
     const renderer = await renderCommand("https://example.com/new-page");
 
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/new-page");
-    expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(true);
+    expect(focusLog).toEqual(["Form.TagPicker"]);
   });
 
   it("drops remembered tags that are no longer configured", async () => {
@@ -79,11 +83,28 @@ describe("Repeat Bookmark", () => {
     expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual(["dev"]);
   });
 
+  it("opens from a saved draft instead of the last settings", async () => {
+    await saveLastSettings({ read: false, tags: ["dev"] });
+
+    const renderer = await renderCommand("https://example.com/clipboard", {
+      url: "https://example.com/draft",
+      tags: ["reading"],
+      read: true,
+    });
+
+    expect(renderer.root.findByType(Form).props.enableDrafts).toBe(true);
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/draft");
+    expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual(["reading"]);
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(true);
+    expect(focusLog).toEqual([]);
+  });
+
   it("starts empty and unread without a previous save", async () => {
     const renderer = await renderCommand();
 
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
     expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+    expect(focusLog).toEqual([]);
     expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual([]);
     expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(false);
   });
@@ -97,7 +118,7 @@ describe("Repeat Bookmark", () => {
     expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(false);
   });
 
-  it("shows a loading form until the last settings resolve", async () => {
+  it("prefills the clipboard URL before the last settings resolve", async () => {
     let resolveStorage!: (value: string | undefined) => void;
     vi.mocked(LocalStorage.getItem).mockReturnValueOnce(
       new Promise<string | undefined>((resolve) => {
@@ -107,8 +128,10 @@ describe("Repeat Bookmark", () => {
 
     const renderer = await renderCommand("https://example.com/page");
 
-    expect(renderer.root.findByType(Form).props.isLoading).toBe(true);
-    expect(renderer.root.findAllByType(Form.Checkbox)).toHaveLength(0);
+    expect(renderer.root.findByType(Form).props.isLoading).toBeUndefined();
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/page");
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(false);
+    expect(focusLog).toEqual(["Form.TagPicker"]);
 
     await act(async () => {
       resolveStorage(JSON.stringify({ read: true, tags: ["dev"] }));
@@ -117,6 +140,30 @@ describe("Repeat Bookmark", () => {
 
     expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(true);
     expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual(["dev"]);
+  });
+
+  it("does not overwrite edits with settings that resolve later", async () => {
+    let resolveStorage!: (value: string | undefined) => void;
+    vi.mocked(LocalStorage.getItem).mockReturnValueOnce(
+      new Promise<string | undefined>((resolve) => {
+        resolveStorage = resolve;
+      }) as Promise<string>,
+    );
+
+    const renderer = await renderCommand();
+
+    await act(async () => {
+      renderer.root.findByType(Form.TagPicker).props.onChange(["reading"]);
+      renderer.root.findByType(Form.Checkbox).props.onChange(true);
+    });
+
+    await act(async () => {
+      resolveStorage(JSON.stringify({ read: false, tags: ["dev"] }));
+      await Promise.resolve();
+    });
+
+    expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual(["reading"]);
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(true);
   });
 
   it("remembers what was saved for the next run", async () => {

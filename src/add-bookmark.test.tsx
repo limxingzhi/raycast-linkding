@@ -1,7 +1,9 @@
 import {
   Action,
+  ActionPanel,
   Clipboard,
   Form,
+  LaunchType,
   LocalStorage,
   Toast,
   closeMainWindow,
@@ -11,8 +13,9 @@ import {
 } from "@raycast/api";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetLocalStorage } from "../test/raycast-api-mock";
+import { focusLog, hideToast, resetFocusLog, resetLocalStorage } from "../test/raycast-api-mock";
 import AddBookmarkCommand from "./add-bookmark";
+import type { BookmarkDraftValues } from "./bookmark-form";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -21,7 +24,7 @@ const showToastMock = vi.mocked(showToast);
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-async function renderCommand(clipboardText?: string): Promise<ReactTestRenderer> {
+async function renderCommand(clipboardText?: string, draftValues?: BookmarkDraftValues): Promise<ReactTestRenderer> {
   if (clipboardText !== undefined) {
     vi.mocked(Clipboard.readText).mockResolvedValueOnce(clipboardText);
   }
@@ -29,7 +32,9 @@ async function renderCommand(clipboardText?: string): Promise<ReactTestRenderer>
   let renderer: ReactTestRenderer | undefined;
 
   await act(async () => {
-    renderer = create(<AddBookmarkCommand />);
+    renderer = create(
+      <AddBookmarkCommand launchType={LaunchType.UserInitiated} arguments={{}} draftValues={draftValues} />,
+    );
   });
 
   return renderer as ReactTestRenderer;
@@ -44,6 +49,7 @@ async function submit(renderer: ReactTestRenderer): Promise<void> {
 
 beforeEach(() => {
   resetLocalStorage();
+  resetFocusLog();
   getPreferenceValuesMock.mockReturnValue({
     serverUrl: "https://linkding.example.com",
     apiToken: "secret",
@@ -65,11 +71,11 @@ describe("Add Bookmark", () => {
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
   });
 
-  it("focuses the URL field when the clipboard has no URL", async () => {
+  it("focuses the URL field through autoFocus when the clipboard has no URL", async () => {
     const renderer = await renderCommand();
 
     expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
-    expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(false);
+    expect(focusLog).toEqual([]);
   });
 
   it("prefills the URL from the clipboard", async () => {
@@ -78,8 +84,29 @@ describe("Add Bookmark", () => {
     const renderer = await renderCommand();
 
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/from-clipboard");
-    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(false);
-    expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(true);
+    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+    expect(focusLog).toEqual(["Form.TagPicker"]);
+  });
+
+  it("opens from a saved draft instead of the clipboard", async () => {
+    const renderer = await renderCommand("https://example.com/clipboard", {
+      url: "https://example.com/draft",
+      tags: ["reading"],
+      read: true,
+    });
+
+    expect(renderer.root.findByType(Form).props.enableDrafts).toBe(true);
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/draft");
+    expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual(["reading"]);
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(true);
+    expect(focusLog).toEqual([]);
+  });
+
+  it("still prefills when the launch passes an empty draft object", async () => {
+    const renderer = await renderCommand("https://example.com/from-clipboard", {});
+
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/from-clipboard");
+    expect(focusLog).toEqual(["Form.TagPicker"]);
   });
 
   it("ignores clipboard text that is not a URL", async () => {
@@ -88,10 +115,10 @@ describe("Add Bookmark", () => {
     const renderer = await renderCommand();
 
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
-    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+    expect(focusLog).toEqual([]);
   });
 
-  it("shows a loading form until the clipboard resolves", async () => {
+  it("opens an interactive form while the clipboard resolves", async () => {
     let resolveClipboard!: (text: string) => void;
     vi.mocked(Clipboard.readText).mockReturnValueOnce(
       new Promise<string>((resolve) => {
@@ -101,8 +128,10 @@ describe("Add Bookmark", () => {
 
     const renderer = await renderCommand();
 
-    expect(renderer.root.findByType(Form).props.isLoading).toBe(true);
-    expect(renderer.root.findAllByType(Form.TextField)).toHaveLength(0);
+    expect(renderer.root.findByType(Form).props.isLoading).toBeUndefined();
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
+    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+    expect(focusLog).toEqual([]);
 
     await act(async () => {
       resolveClipboard("https://example.com/from-clipboard");
@@ -110,7 +139,7 @@ describe("Add Bookmark", () => {
     });
 
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/from-clipboard");
-    expect(renderer.root.findByType(Form.TagPicker).props.autoFocus).toBe(true);
+    expect(focusLog).toEqual(["Form.TagPicker"]);
   });
 
   it("opens an empty form when the clipboard cannot be read", async () => {
@@ -119,12 +148,14 @@ describe("Add Bookmark", () => {
     const renderer = await renderCommand();
 
     expect(renderer.root.findByType(Form.TextField).props.value).toBe("");
-    expect(renderer.root.findByType(Form.TextField).props.autoFocus).toBe(true);
+    expect(focusLog).toEqual([]);
   });
 
   it("places read status after URL and tags", async () => {
     const renderer = await renderCommand();
-    const children = renderer.root.findByType(Form).props.children as Array<{ type: unknown }>;
+    const children = (renderer.root.findByType(Form).props.children as Array<{ type: unknown } | null>).filter(
+      (child): child is { type: unknown } => child !== null,
+    );
 
     expect(children.map((child) => child.type)).toEqual([Form.TextField, Form.TagPicker, Form.Checkbox]);
   });
@@ -165,10 +196,8 @@ describe("Add Bookmark", () => {
       unread: true,
       tag_names: [],
     });
-    expect(showToastMock).toHaveBeenCalledWith({
-      style: Toast.Style.Success,
-      title: "Bookmark saved",
-    });
+    expect(showToastMock).toHaveBeenCalledWith({ style: Toast.Style.Animated, title: "Saving bookmark" });
+    expect(hideToast).toHaveBeenCalled();
     expect(closeMainWindow).toHaveBeenCalled();
     expect(LocalStorage.setItem).toHaveBeenCalledWith(
       "last-bookmark-settings",
@@ -245,68 +274,122 @@ describe("Add Bookmark", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("offers preferences when the token is rejected", async () => {
+  it("shows an animated loader toast while saving", async () => {
+    let resolveFetch!: (response: Response) => void;
+    const fetchMock = vi.fn<Fetch>(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    const action = renderer.root.findByType(Action.SubmitForm);
+    let firstSubmit!: Promise<void>;
+
+    await act(async () => {
+      firstSubmit = (action.props.onSubmit as () => Promise<void>)();
+    });
+
+    expect(showToastMock).toHaveBeenCalledWith({ style: Toast.Style.Animated, title: "Saving bookmark" });
+    expect(hideToast).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveFetch(new Response("{}", { status: 201 }));
+      await firstSubmit;
+    });
+
+    expect(hideToast).toHaveBeenCalled();
+  });
+
+  it("shows a single failure toast on a token error", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ detail: "Invalid token." }), { status: 401 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const renderer = await renderCommand("https://example.com/page");
     await submit(renderer);
 
-    expect(showToastMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        style: Toast.Style.Failure,
-        title: "Invalid API token",
-        primaryAction: expect.objectContaining({ title: "Open Extension Preferences" }),
-      }),
-    );
+    expect(renderer.root.findAllByType(Form.Description)).toHaveLength(0);
+    expect(showToastMock).toHaveBeenCalledTimes(1);
+    expect(showToastMock).toHaveBeenCalledWith({ style: Toast.Style.Animated, title: "Saving bookmark" });
 
-    const toastOptions = showToastMock.mock.calls[0][0] as unknown as {
-      primaryAction?: { onAction: () => Promise<void> };
-    };
-    await toastOptions.primaryAction?.onAction();
+    const toast = (await showToastMock.mock.results[0]!.value) as Toast;
+    expect(toast.style).toBe(Toast.Style.Failure);
+    expect(toast.title).toBe("Invalid API token");
+    expect(toast.message).toBe("Update the token in the extension preferences.");
+    expect(toast.primaryAction?.title).toBe("Open Extension Preferences");
+    toast.primaryAction?.onAction(toast);
     expect(openExtensionPreferences).toHaveBeenCalled();
+
+    const actionTitles = renderer.root.findAllByType(Action).map((action) => action.props.title);
+    expect(actionTitles[0]).toBe("Open Extension Preferences");
+    expect(renderer.root.findByType(Action.SubmitForm)).toBeTruthy();
+    expect(renderer.root.findByType(ActionPanel)).toBeTruthy();
   });
 
-  it("shows the server message when saving fails", async () => {
+  it("shows the server message in the failure toast", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ detail: "Server exploded" }), { status: 500 }));
     vi.stubGlobal("fetch", fetchMock);
 
     const renderer = await renderCommand("https://example.com/page");
     await submit(renderer);
 
-    expect(showToastMock).toHaveBeenCalledWith({
-      style: Toast.Style.Failure,
-      title: "Could not save bookmark",
-      message: "Server exploded",
-    });
+    expect(renderer.root.findAllByType(Form.Description)).toHaveLength(0);
+    expect(showToastMock).toHaveBeenCalledTimes(1);
+
+    const toast = (await showToastMock.mock.results[0]!.value) as Toast;
+    expect(toast.style).toBe(Toast.Style.Failure);
+    expect(toast.title).toBe("Could not save bookmark");
+    expect(toast.message).toBe("Server exploded");
   });
 
-  it("shows a timeout toast when the request times out", async () => {
+  it("shows a timeout message in the failure toast", async () => {
     const fetchMock = vi.fn<Fetch>().mockRejectedValue(new DOMException("Timed out", "TimeoutError"));
     vi.stubGlobal("fetch", fetchMock);
 
     const renderer = await renderCommand("https://example.com/page");
     await submit(renderer);
 
-    expect(showToastMock).toHaveBeenCalledWith({
-      style: Toast.Style.Failure,
-      title: "Could not save bookmark",
-      message: "The request to linkding timed out.",
-    });
+    expect(showToastMock).toHaveBeenCalledTimes(1);
+
+    const toast = (await showToastMock.mock.results[0]!.value) as Toast;
+    expect(toast.style).toBe(Toast.Style.Failure);
+    expect(toast.title).toBe("Could not save bookmark");
+    expect(toast.message).toBe("The request to linkding timed out.");
   });
 
-  it("shows a network toast when the server is unreachable", async () => {
+  it("shows a network message in the failure toast", async () => {
     const fetchMock = vi.fn<Fetch>().mockRejectedValue(new TypeError("fetch failed"));
     vi.stubGlobal("fetch", fetchMock);
 
     const renderer = await renderCommand("https://example.com/page");
     await submit(renderer);
 
-    expect(showToastMock).toHaveBeenCalledWith({
-      style: Toast.Style.Failure,
-      title: "Could not save bookmark",
-      message: "Could not reach the linkding server.",
+    expect(showToastMock).toHaveBeenCalledTimes(1);
+
+    const toast = (await showToastMock.mock.results[0]!.value) as Toast;
+    expect(toast.style).toBe(Toast.Style.Failure);
+    expect(toast.title).toBe("Could not save bookmark");
+    expect(toast.message).toBe("Could not reach the linkding server.");
+  });
+
+  it("restores the normal action order after editing", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ detail: "Invalid token." }), { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const renderer = await renderCommand("https://example.com/page");
+    await submit(renderer);
+    expect(renderer.root.findAllByType(Action)[0]?.props.title).toBe("Open Extension Preferences");
+
+    await act(async () => {
+      renderer.root.findByType(Form.TextField).props.onChange("https://example.com/other");
     });
+
+    expect(renderer.root.findAllByType(Action).map((action) => action.props.title)).toEqual([
+      "Mark as Read",
+      "Open Extension Preferences",
+    ]);
   });
 
   it("ignores repeated submits while a request is in flight", async () => {
@@ -330,16 +413,17 @@ describe("Add Bookmark", () => {
     await submit(renderer);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(showToastMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       resolveFetch(new Response("{}", { status: 201 }));
       await firstSubmit;
     });
 
-    expect(showToastMock).toHaveBeenCalledTimes(1);
+    expect(closeMainWindow).toHaveBeenCalledTimes(1);
   });
 
-  it("freezes the form while a request is in flight", async () => {
+  it("keeps accepting edits while a request is in flight", async () => {
     let resolveFetch!: (response: Response) => void;
     const fetchMock = vi.fn<Fetch>(
       () =>
@@ -357,7 +441,7 @@ describe("Add Bookmark", () => {
       firstSubmit = (action.props.onSubmit as () => Promise<void>)();
     });
 
-    expect(renderer.root.findByType(Form).props.isLoading).toBe(true);
+    expect(showToastMock).toHaveBeenCalledWith({ style: Toast.Style.Animated, title: "Saving bookmark" });
 
     await act(async () => {
       renderer.root.findByType(Form.TextField).props.onChange("https://example.com/other");
@@ -365,9 +449,9 @@ describe("Add Bookmark", () => {
       renderer.root.findByType(Form.Checkbox).props.onChange(true);
     });
 
-    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/page");
-    expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual([]);
-    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(false);
+    expect(renderer.root.findByType(Form.TextField).props.value).toBe("https://example.com/other");
+    expect(renderer.root.findByType(Form.TagPicker).props.value).toEqual(["dev"]);
+    expect(renderer.root.findByType(Form.Checkbox).props.value).toBe(true);
 
     await act(async () => {
       resolveFetch(new Response("{}", { status: 201 }));

@@ -17,87 +17,97 @@ import { getSettings } from "./lib/preferences";
 import { retainConfiguredTags } from "./lib/tags";
 import { parseClipboardUrl, withDefaultScheme } from "./lib/url";
 
-export interface BookmarkFormProps {
-  reuseLastSettings?: boolean;
+export interface BookmarkDraftValues {
+  url?: string;
+  tags?: string[];
+  read?: boolean;
 }
 
-export function BookmarkForm({ reuseLastSettings = false }: BookmarkFormProps) {
+export interface BookmarkFormProps {
+  reuseLastSettings?: boolean;
+  draftValues?: BookmarkDraftValues;
+}
+
+export function BookmarkForm({ reuseLastSettings = false, draftValues }: BookmarkFormProps) {
   const [settings] = useState(() => getSettings());
-  const [url, setUrl] = useState("");
+  const hasDraft = draftValues !== undefined && Object.keys(draftValues).length > 0;
+  const [url, setUrl] = useState(() => draftValues?.url ?? "");
   const [urlError, setUrlError] = useState<string>();
-  const [read, setRead] = useState(false);
-  const [tags, setTags] = useState<string[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasUrl, setHasUrl] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [tokenError, setTokenError] = useState(false);
+  const [read, setRead] = useState(() => draftValues?.read ?? false);
+  const [tags, setTags] = useState<string[]>(() =>
+    draftValues?.tags ? retainConfiguredTags(draftValues.tags, settings.tags) : [],
+  );
+  const [hasUrl, setHasUrl] = useState(() => Boolean(draftValues?.url));
   const isSubmittingRef = useRef(false);
+  const hasEditedRef = useRef(hasDraft);
+  const tagsRef = useRef<Form.TagPicker>(null);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function prepare() {
-      const [clipboardText, lastSettings] = await Promise.all([
-        Clipboard.readText().then(
-          (text) => text,
-          () => undefined,
-        ),
-        reuseLastSettings ? loadLastSettings() : Promise.resolve(undefined),
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      const clipboardUrl = parseClipboardUrl(clipboardText ?? "");
-      if (clipboardUrl) {
-        setUrl(clipboardUrl);
-        setHasUrl(true);
-      }
-
-      if (lastSettings) {
-        setTags(retainConfiguredTags(lastSettings.tags, settings.tags));
-        setRead(lastSettings.read);
-      }
-
-      setIsLoading(false);
+    if (hasDraft) {
+      return;
     }
 
-    void prepare();
+    let cancelled = false;
+
+    void Clipboard.readText().then(
+      (text) => {
+        if (cancelled || hasEditedRef.current) {
+          return;
+        }
+
+        const clipboardUrl = parseClipboardUrl(text ?? "");
+        if (clipboardUrl) {
+          setUrl(clipboardUrl);
+          setHasUrl(true);
+        }
+      },
+      () => undefined,
+    );
+
+    if (reuseLastSettings) {
+      void loadLastSettings().then((lastSettings) => {
+        if (cancelled || hasEditedRef.current) {
+          return;
+        }
+
+        setTags(retainConfiguredTags(lastSettings.tags, settings.tags));
+        setRead(lastSettings.read);
+      });
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [reuseLastSettings, settings.tags]);
+  }, [hasDraft, reuseLastSettings, settings.tags]);
 
-  if (isLoading) {
-    return <Form isLoading />;
-  }
-
-  function handleUrlChange(value: string) {
-    if (isSubmittingRef.current) {
+  useEffect(() => {
+    if (!hasUrl || hasEditedRef.current) {
       return;
     }
 
+    tagsRef.current?.focus();
+  }, [hasUrl]);
+
+  function handleUrlChange(value: string) {
+    hasEditedRef.current = true;
     setUrl(value);
+    setTokenError(false);
     if (urlError) {
       setUrlError(validateBookmarkUrl(withDefaultScheme(value)));
     }
   }
 
   function handleTagsChange(value: string[]) {
-    if (isSubmittingRef.current) {
-      return;
-    }
-
+    hasEditedRef.current = true;
     setTags(value);
+    setTokenError(false);
   }
 
   function handleReadChange(value: boolean) {
-    if (isSubmittingRef.current) {
-      return;
-    }
-
+    hasEditedRef.current = true;
     setRead(value);
+    setTokenError(false);
   }
 
   async function handleSubmit() {
@@ -114,50 +124,48 @@ export function BookmarkForm({ reuseLastSettings = false }: BookmarkFormProps) {
 
     setUrl(normalizedUrl);
     setUrlError(undefined);
+    setTokenError(false);
     isSubmittingRef.current = true;
-    setIsSubmitting(true);
+    const toast = await showToast({ style: Toast.Style.Animated, title: "Saving bookmark" });
 
     try {
       await createBookmark(buildBookmarkPayload({ url: normalizedUrl, read, tags }), settings);
       await saveLastSettings({ read, tags });
-      await showToast({ style: Toast.Style.Success, title: "Bookmark saved" });
+      await toast.hide();
       await closeMainWindow();
     } catch (error) {
       if (isUnauthorized(error)) {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "Invalid API token",
-          message: "Update the token in the extension preferences.",
-          primaryAction: {
-            title: "Open Extension Preferences",
-            onAction: openExtensionPreferences,
-          },
-        });
+        setTokenError(true);
+        toast.style = Toast.Style.Failure;
+        toast.title = "Invalid API token";
+        toast.message = "Update the token in the extension preferences.";
+        toast.primaryAction = {
+          title: "Open Extension Preferences",
+          onAction: openExtensionPreferences,
+        };
       } else {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "Could not save bookmark",
-          message: getErrorMessage(error),
-        });
+        toast.style = Toast.Style.Failure;
+        toast.title = "Could not save bookmark";
+        toast.message = getErrorMessage(error);
       }
     } finally {
       isSubmittingRef.current = false;
-      setIsSubmitting(false);
     }
   }
 
   return (
     <Form
-      isLoading={isSubmitting}
+      enableDrafts
       actions={
         <ActionPanel>
+          {tokenError ? <Action title="Open Extension Preferences" onAction={openExtensionPreferences} /> : null}
           <Action.SubmitForm title="Save Bookmark" onSubmit={handleSubmit} />
           <Action
             title={read ? "Mark as Unread" : "Mark as Read"}
             shortcut={Keyboard.Shortcut.Common.Refresh}
             onAction={() => handleReadChange(!read)}
           />
-          <Action title="Open Extension Preferences" onAction={openExtensionPreferences} />
+          {tokenError ? null : <Action title="Open Extension Preferences" onAction={openExtensionPreferences} />}
         </ActionPanel>
       }
     >
@@ -165,9 +173,9 @@ export function BookmarkForm({ reuseLastSettings = false }: BookmarkFormProps) {
         id="url"
         title="URL"
         placeholder="https://example.com"
+        autoFocus
         value={url}
         error={urlError}
-        autoFocus={!hasUrl}
         onChange={handleUrlChange}
       />
       <Form.TagPicker
@@ -175,7 +183,7 @@ export function BookmarkForm({ reuseLastSettings = false }: BookmarkFormProps) {
         title="Tags"
         placeholder="Filter configured tags"
         value={tags}
-        autoFocus={hasUrl}
+        ref={tagsRef}
         onChange={handleTagsChange}
       >
         {settings.tags.map((tag) => (

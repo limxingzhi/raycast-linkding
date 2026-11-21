@@ -1,4 +1,4 @@
-import { createElement, type ReactNode } from "react";
+import { createElement, forwardRef, useImperativeHandle, type ReactNode } from "react";
 import { vi } from "vitest";
 
 type Props = Record<string, unknown>;
@@ -7,8 +7,23 @@ interface Component {
   displayName?: string;
 }
 
-function createLeaf(displayName: string): Component {
-  const Component: Component = () => null;
+export const focusLog: string[] = [];
+
+export function resetFocusLog(): void {
+  focusLog.length = 0;
+}
+
+function createLeaf(displayName: string) {
+  const Component = forwardRef<{ focus: () => void; reset: () => void }, Props>((props, ref) => {
+    useImperativeHandle(ref, () => ({
+      focus: () => {
+        focusLog.push(displayName);
+      },
+      reset: () => undefined,
+    }));
+
+    return createElement("div", { "data-mock": displayName }, props.children as ReactNode);
+  });
   Component.displayName = displayName;
   return Component;
 }
@@ -28,6 +43,7 @@ function createContainer(displayName: string, extraProps: string[] = []): Compon
 export const Form = Object.assign(createContainer("Form", ["actions"]), {
   TextField: createLeaf("Form.TextField"),
   Checkbox: createLeaf("Form.Checkbox"),
+  Description: createLeaf("Form.Description"),
   TagPicker: Object.assign(createLeaf("Form.TagPicker"), {
     Item: createLeaf("Form.TagPicker.Item"),
   }),
@@ -37,6 +53,11 @@ export const ActionPanel = createContainer("ActionPanel");
 export const Action = Object.assign(createLeaf("Action"), {
   SubmitForm: createLeaf("Action.SubmitForm"),
 });
+
+export const LaunchType = {
+  UserInitiated: "userInitiated",
+  Background: "background",
+};
 
 export const Keyboard = {
   Shortcut: {
@@ -77,7 +98,15 @@ export function resetLocalStorage(): void {
   localStorageData.clear();
 }
 
-export const showToast = vi.fn(async () => ({}));
+export const hideToast = vi.fn(async () => undefined);
+
+export const showToast = vi.fn(
+  async (options: { style?: string; title?: string; message?: string; primaryAction?: unknown } = {}) => ({
+    ...options,
+    show: vi.fn(async () => undefined),
+    hide: hideToast,
+  }),
+);
 export const closeMainWindow = vi.fn(async () => undefined);
 export const openExtensionPreferences = vi.fn(async () => undefined);
 export const getPreferenceValues = vi.fn(() => ({ serverUrl: "", apiToken: "", tags: "" }));

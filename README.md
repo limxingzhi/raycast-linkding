@@ -12,6 +12,8 @@ A [Raycast](https://www.raycast.com/) extension for saving a page to a self-host
 - **Read status** - a read/unread toggle that defaults to **unread**; press `⌘R` (`Ctrl+R` on Windows) to flip it.
 - **Tags** - a fuzzy-searchable multi-select populated from the tag list configured in the extension preferences.
 - **Direct to linkding** - the bookmark is created through the linkding REST API using the server URL and API token from preferences.
+- **Calm feedback** - a single toast shows the save in progress, becomes the error on failure, and disappears on success without a confirmation.
+- **Drafts** - closing the window with unsaved input saves a draft, and the next launch starts from it.
 
 ## Command
 
@@ -30,13 +32,21 @@ Launch **Repeat Bookmark** instead when the next page should reuse the tags and 
 
 When the clipboard does not contain a URL, the form opens with an empty URL field, so a link can be typed or pasted there instead.
 
+### Feedback
+
+The form opens immediately with the URL field focused. The clipboard URL and last-save settings fill in as they arrive without a loading bar, and they never overwrite input you have already typed. Submitting shows a "Saving bookmark" toast for as long as the request runs, including a timeout, so the window never looks idle. On success that toast disappears and the window closes. On failure the same toast becomes the error, so the message appears once. A rejected token also offers **Open Extension Preferences** from the toast and moves that action to the top of the action panel.
+
+If you close the window with unsaved input, Raycast stores it as a draft. Launching the command again starts from that draft instead of the clipboard or the last saved settings.
+
+The loading and success behavior follows [A Simple Guide to Calm UI](https://maxschmitt.me/posts/calm). Failures reuse the loader toast, so the error stays prominent without a second message in the form.
+
 ## Form
 
-| Field           | Required | Default                          | Notes                                                                                                                |
-| --------------- | -------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **URL**         | yes      | clipboard value, or empty        | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused when the clipboard has no URL. |
-| **Tags**        | no       | none, or the last saved tags     | Multi-select from the configured tag list; type to filter. Focused when the clipboard provides a URL.                |
-| **Read status** | yes      | Unread, or the last saved status | Toggles between read and unread. `⌘R` (`Ctrl+R` on Windows) toggles it from the action panel.                        |
+| Field           | Required | Default                          | Notes                                                                                                 |
+| --------------- | -------- | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **URL**         | yes      | clipboard value, or empty        | Must be a valid absolute URL. `https://` is added when the scheme is missing. Focused at launch.      |
+| **Tags**        | no       | none, or the last saved tags     | Multi-select from the configured tag list; type to filter. Focused when the clipboard provides a URL. |
+| **Read status** | yes      | Unread, or the last saved status | Toggles between read and unread. `⌘R` (`Ctrl+R` on Windows) toggles it from the action panel.         |
 
 ## Preferences
 

@@ -1,5 +1,6 @@
-import { BookmarkForm } from "./bookmark-form";
+import { LaunchProps } from "@raycast/api";
+import { BookmarkForm, type BookmarkDraftValues } from "./bookmark-form";
 
-export default function RepeatBookmarkCommand() {
-  return <BookmarkForm reuseLastSettings />;
+export default function RepeatBookmarkCommand({ draftValues }: LaunchProps<{ draftValues: BookmarkDraftValues }>) {
+  return <BookmarkForm reuseLastSettings draftValues={draftValues} />;
 }
